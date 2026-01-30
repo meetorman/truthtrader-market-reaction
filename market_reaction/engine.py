@@ -109,7 +109,9 @@ def get_market_reaction(
 
     # Create MarketDataClient
     if polygon_api_key:
-        client = MarketDataClient(barvault_config, polygon=PolygonConfig(api_key=polygon_api_key))
+        client = MarketDataClient(
+            barvault_config, polygon=PolygonConfig(api_key=polygon_api_key)
+        )
     else:
         # Create a provider that will fail on fetch (read-only mode)
         # This requires a stub provider
@@ -118,7 +120,9 @@ def get_market_reaction(
 
         class NoopProvider(BaseProvider):
             def fetch_1m_bars(self, symbol: str, *, start, end) -> list[Bar]:
-                raise RuntimeError("No polygon_api_key provided - cannot fetch missing data")
+                raise RuntimeError(
+                    "No polygon_api_key provided - cannot fetch missing data"
+                )
 
         client = MarketDataClient(barvault_config, provider=NoopProvider())
 
@@ -139,16 +143,22 @@ def get_market_reaction(
     tickers = [t.upper() for t in tickers]
     watchlist = tickers.copy()
 
-    # Add sector ETFs and indices for broader analysis
-    sector_etf_symbols = [e["symbol"] for e in SECTOR_ETFS]
-    all_tickers = list(set(tickers + DEFAULT_INDICES + sector_etf_symbols))
+    # Start with user's tickers plus essential indices (SPY for T0 reference)
+    all_tickers = list(set(tickers + DEFAULT_INDICES))
 
-    # Add biggest movers universe if requested
+    # Only add sector ETFs and biggest movers if explicitly requested
     if include_biggest_movers:
+        # Add sector ETFs for sector impact analysis
+        sector_etf_symbols = [e["symbol"] for e in SECTOR_ETFS]
+        all_tickers = list(set(all_tickers + sector_etf_symbols))
+
+        # Add biggest movers universe
         biggest_mover_symbols = get_symbols_for_biggest_movers(include_biggest_movers)
         all_tickers = list(set(all_tickers + biggest_mover_symbols))
 
-    logger.info(f"Computing reaction for {len(all_tickers)} tickers at {iso_z(event_time)}")
+    logger.info(
+        f"Computing reaction for {len(all_tickers)} tickers at {iso_z(event_time)}"
+    )
 
     # Get reference T0 bar (SPY)
     reference_t0 = get_reference_t0(client, event_time)
@@ -235,12 +245,18 @@ def get_market_reaction(
         biggest_movers=[m.to_dict() for m in categorized.biggest_movers],
         sector_impact=identify_sector_impact(categorized),
         summary=asdict(summary),
-        market_status="closed_during_event" if market_was_closed else "open_during_event",
+        market_status=(
+            "closed_during_event" if market_was_closed else "open_during_event"
+        ),
         baseline_adjusted=market_was_closed,
         baseline_reason=(
-            f"Event occurred at {iso_z(original_event_time)} when market was closed. "
-            f"T0 set to next market open at {iso_z(event_time)}."
-        ) if market_was_closed else None,
+            (
+                f"Event occurred at {iso_z(original_event_time)} when market was closed. "
+                f"T0 set to next market open at {iso_z(event_time)}."
+            )
+            if market_was_closed
+            else None
+        ),
     )
 
     return result.to_dict()
